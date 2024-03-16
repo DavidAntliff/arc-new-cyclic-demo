@@ -14,12 +14,28 @@ impl Node {
     // }
 }
 
+impl Drop for Node {
+    fn drop(&mut self) {
+        println!("drop {}", self.x);
+    }
+}
+
 fn create_child(x: i32, parent: Weak<Node>) -> Arc<Node> {
     Arc::new(Node { x: x, parent: parent, children: vec![] })
 }
 
-fn create_parent(x: i32) -> Arc<Node> {
+fn create_group(v: &mut Vec<Arc<Node>>, x: i32, members: Vec<i32>) -> Arc<Node> {
+    Arc::new_cyclic(|weak| {
+        let mut node =  Node { x: x, parent: Weak::default(), children: vec![] };
 
+        for id in members {
+            let n = create_child(id, weak.clone());
+            v.push(n.clone());
+            node.children.push(Arc::downgrade(&n));
+        }
+
+        node
+    })
 }
 
 fn main() {
@@ -35,31 +51,33 @@ fn main() {
     //let mut sn = &mut v[0];
 
     // Parent:
-    let n0 = Arc::new_cyclic(|weak| {
-        let mut node =  Node { x: 0, parent: Weak::default(), children: vec![] };
-
-        //let n1 = Arc::new(Node { x: 1, parent: weak.clone(), children: vec![] });
-        let n1 = create_child(1, weak.clone());
-        v.push(n1.clone());
-        node.children.push(Arc::downgrade(&n1));
-
-        let n2 = create_child(1, weak.clone());
-        v.push(n2.clone());
-        node.children.push(Arc::downgrade(&n2));
-
-        let n3 = create_child(3, weak.clone());
-        v.push(n3.clone());
-        node.children.push(Arc::downgrade(&n3));
-
-        Arc::get_mut(&mut existing_children[0]).unwrap().parent = weak.clone();
-        v.push(existing_children[0].clone());
-        node.children.push(Arc::downgrade(&existing_children[0]));
-
-        //Arc::get_mut(&mut sn).unwrap().parent = weak.clone();
-        //node.children.push(Arc::downgrade(&sn));
-
-        node
-    });
+    // So, provide the DATA to construct the children, not the children themselves
+    let n0 = create_group(&mut v, 0, vec![1, 2, 3]);
+    // let n0 = Arc::new_cyclic(|weak| {
+    //     let mut node =  Node { x: 0, parent: Weak::default(), children: vec![] };
+    //
+    //     //let n1 = Arc::new(Node { x: 1, parent: weak.clone(), children: vec![] });
+    //     let n1 = create_child(1, weak.clone());
+    //     v.push(n1.clone());
+    //     node.children.push(Arc::downgrade(&n1));
+    //
+    //     let n2 = create_child(2, weak.clone());
+    //     v.push(n2.clone());
+    //     node.children.push(Arc::downgrade(&n2));
+    //
+    //     let n3 = create_child(3, weak.clone());
+    //     v.push(n3.clone());
+    //     node.children.push(Arc::downgrade(&n3));
+    //
+    //     Arc::get_mut(&mut existing_children[0]).unwrap().parent = weak.clone();
+    //     v.push(existing_children[0].clone());
+    //     node.children.push(Arc::downgrade(&existing_children[0]));
+    //
+    //     //Arc::get_mut(&mut sn).unwrap().parent = weak.clone();
+    //     //node.children.push(Arc::downgrade(&sn));
+    //
+    //     node
+    // });
     v.push(n0);
 
     // // the parent:
