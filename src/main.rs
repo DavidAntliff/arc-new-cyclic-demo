@@ -1,11 +1,29 @@
+//mod deserialize;
+
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Weak};
 use std::thread;
 
-#[derive(Debug, Default)]
+/*
+{
+  "nodes": [
+    {
+      "x": 0
+    },
+    {
+      "x": 1
+    }
+  ]
+}
+ */
+
+#[derive(Debug, Default, Serialize, Deserialize)]
 struct Node {
     x: i32,
-    parent: Weak<Node>,
+    #[serde(skip)]
     children: Vec<Weak<Node>>,
+    #[serde(skip)]
+    parent: Weak<Node>,
 }
 
 impl Node {
@@ -21,12 +39,20 @@ impl Drop for Node {
 }
 
 fn create_child(x: i32, parent: Weak<Node>) -> Arc<Node> {
-    Arc::new(Node { x: x, parent: parent, children: vec![] })
+    Arc::new(Node {
+        x: x,
+        parent: parent,
+        children: vec![],
+    })
 }
 
 fn create_group(v: &mut Vec<Arc<Node>>, x: i32, members: Vec<i32>) -> Arc<Node> {
     Arc::new_cyclic(|weak| {
-        let mut node =  Node { x: x, parent: Weak::default(), children: vec![] };
+        let mut node = Node {
+            x: x,
+            parent: Weak::default(),
+            children: vec![],
+        };
 
         for id in members {
             let n = create_child(id, weak.clone());
@@ -38,13 +64,52 @@ fn create_group(v: &mut Vec<Arc<Node>>, x: i32, members: Vec<i32>) -> Arc<Node> 
     })
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct World {
+    //nodes: Vec<Arc<Node>>,
+    nodes: Vec<Node>,
+}
+
+fn serialize() {
+    let world = World {
+        nodes: vec![
+            Node { x: 0, parent: Default::default(), children: Default::default() },
+            Node { x: 1, parent: Default::default(), children: Default::default() },
+        ]
+    };
+    let serialized = serde_json::to_string(&world).unwrap();
+    println!("serialized = {}", serialized);
+}
+
+fn deserialize() {
+    let json = r#"{
+  "nodes": [
+    {
+      "x": 0
+    },
+    {
+      "x": 1
+    }
+  ]
+}"#;
+
+    let deserialized: World = serde_json::from_str(json).unwrap();
+    println!("deserialized = {:?}", deserialized);
+}
+
 fn main() {
+    serialize();
+    deserialize();
+    return;
+
     let mut v: Vec<Arc<Node>> = vec![];
 
     // Can we have children first? In a separate vec:
-    let mut existing_children = vec![
-        Arc::new(Node {x: 10, parent: Weak::default(), children: vec![] }),
-    ];
+    let mut existing_children = vec![Arc::new(Node {
+        x: 10,
+        parent: Weak::default(),
+        children: vec![],
+    })];
 
     // How about in the same vec? Nope...
     //v.push(Arc::new(Node {x: 20, parent: Weak::default(), children: vec![] }));
@@ -99,11 +164,9 @@ fn main() {
     //v.push(n1);
     //v.push(n2);
 
-
     let arc_v = Arc::new(v); // Wrap the vector in an Arc for shared ownership
 
     thread::scope(|scope| {
-
         for i in 0..arc_v.len() {
             let arc_v_clone = Arc::clone(&arc_v); // Clone the Arc, not the data itself
             scope.spawn(move || {
